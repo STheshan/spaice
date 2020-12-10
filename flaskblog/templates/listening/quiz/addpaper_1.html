@@ -1,0 +1,28 @@
+{% extends 'layout.html' %} {% block content %}
+
+<body>
+    <div class="container mt-3">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5>Listening</h5>
+            </div>
+        </div>
+        <form action="/listening/add_paper" method="POST">
+            <p>Input paper name :
+                <input type="text" id="paper_name" name="paper_name"></p>
+            <br>
+            <p>Input media file :
+                <input type="file" accept="audio/mpeg" id="media_file" name="media_file"></p>
+            <br>
+            <p>Input paper instructions :
+                <input type="text" id="instruct" name="instruct"></p>
+            <br>
+            
+            <input type="submit" class="btn btn-primary btn-sm float-right " value="Save paper">
+            <br>
+    </div>
+    </form>
+</body>
+
+</html>
+{% endblock content %}
