@@ -12,23 +12,11 @@
             </div>
             <div class="card-body">
                 <h6 class="card-title">
-                    <table style="margin-left: auto; margin-right: auto;" border="1">
-                        <thead>
-                            <tr>
-                                <th>Paper ID</th>
-                                <th>Paper Name</th>
-                                <th>Select</th>
-                            </tr>
-                        </thead>
+                    <p>hi</p>
                 </h6>
                     {% for row in papers %}
-                    <tr>
-                        <td>{{row[0]}}</td>
-                        <td>{{row[1]}}</td>
-                        <td><a href="/listening/display_quiz/{{row[0]}}" class="btn btn-primary btn-sm">Select</a></td>
-                    </tr>
+                        <a href="/listening/display_quiz/{{row[0]}}" class="list-group-item list-group-item-action">{{row[1]}}</a>
                     {% endfor %}
-                </table><br>
                 
                 <div class="card-footer text-muted text-right">
                     <a href="/listening/summary" class="btn btn-primary btn-sm">Go to Study Plan!</a>

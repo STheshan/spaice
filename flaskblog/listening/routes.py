@@ -4,6 +4,9 @@ from flask_login import current_user
 from flaskext.mysql import MySQL
 import joblib
 import sys
+import os
+from werkzeug.utils import secure_filename
+from gtts import gTTS
 # Import trained model
 suggestion_model = joblib.load(
     'flaskblog/listening/Listening_activity_suggestion_up1.sav')
@@ -19,6 +22,11 @@ app.config['MYSQL_DATABASE_DB'] = 'ielts'
 app.config['MYSQL_DATABASE_HOST'] = 'localhost'
 mysql.init_app(app)
 
+UPLOAD_FOLDER = 'flaskblog/static/listening_audio'
+
+app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
 # Main page
 
 
@@ -29,6 +37,58 @@ def listen():
     conn = mysql.connect()
     c = conn.cursor()
     uid = current_user.id
+
+    try:
+        q = "SELECT paper_id  FROM listening_add_paper WHERE paper_id = 1"
+        c.execute(q)
+        paper_id = c.fetchone()[0]
+        if paper_id:
+            papers = available_quiz()
+            papers1 = papers[0]
+            papers2 = papers[1]
+            papers3 = papers[2]
+            papers4 = papers[3]
+    except Exception:
+        papers = {0,"no papers available"}
+        create_table1= "CREATE TABLE IF NOT EXISTS listening_add_paper (paper_id INT(2) UNSIGNED AUTO_INCREMENT PRIMARY KEY , paper_name VARCHAR(150) , media_file VARCHAR(150) , instruct VARCHAR(150), level INT(2))"
+        c.execute(create_table1)
+        query = "INSERT INTO listening_add_paper(paper_name,media_file,instruct,level) VALUES (%s,%s,%s,%s)"
+        val = ['sample paper' ,'no_file', 'instruct',1]
+        c.execute(query, val)
+        conn.commit()
+
+        create_table2= "CREATE TABLE IF NOT EXISTS listening_add_paper_mcq(id INT(2) UNSIGNED AUTO_INCREMENT PRIMARY KEY, qid int(2), question VARCHAR(150) NOT NULL, a  VARCHAR(150), b  VARCHAR(150), c  VARCHAR(150),d  VARCHAR(150), corret_answer VARCHAR(150) , paper_id int)"
+        c.execute(create_table2)
+        query = "INSERT INTO listening_add_paper_mcq(qid,question,a,b,c,d, corret_answer , paper_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)"
+        val = [1, 'ques','ans1','ans2','ans3','ans4','a',1]
+        c.execute(query, val)
+        conn.commit()
+
+        create_table3 = "CREATE TABLE IF NOT EXISTS listening_add_paper_ttype(id INT(2) UNSIGNED AUTO_INCREMENT PRIMARY KEY , qid int(2) , question VARCHAR(150) NOT NULL , answer VARCHAR(150), paper_id int)"
+        c.execute(create_table3)
+        query = "INSERT INTO listening_add_paper_ttype(qid,question,answer, paper_id) VALUES (%s,%s,%s,%s)"
+        val = [2, 'ques','answer',1]
+        c.execute(query, val)
+        conn.commit()
+
+        create_table4 = "CREATE TABLE IF NOT EXISTS listening_add_paper_matching (id INT(2) UNSIGNED AUTO_INCREMENT PRIMARY KEY , qid int(2) , question VARCHAR(150) NOT NULL , answer VARCHAR(150), paper_id int)"
+        c.execute(create_table4)
+        query = "INSERT INTO listening_add_paper_matching(qid,question,answer,paper_id) VALUES (%s,%s,%s,%s)"
+        val = [3, 'ques','answer',1]
+        c.execute(query, val)
+        conn.commit()
+
+        create_table5= "CREATE TABLE IF NOT EXISTS listening_add_paper_multiple(id INT(2) UNSIGNED AUTO_INCREMENT PRIMARY KEY, qid int(2), question VARCHAR(150) NOT NULL, a  VARCHAR(150), b  VARCHAR(150), c  VARCHAR(150), d  VARCHAR(150), ans_a  int(2), ans_b int(2), ans_c  int(2),ans_d  int(2), paper_id int)"
+        c.execute(create_table5)
+        query = "INSERT INTO listening_add_paper_multiple(qid,question,a,b,c,d,ans_a,ans_b,ans_c,ans_d, paper_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+        val = [4, 'ques','ans1','ans2','ans3','ans4',0,0,0,0,1]
+        c.execute(query, val)
+        conn.commit()
+
+    
+
+    table = "CREATE TABLE IF NOT EXISTS listening_user (user_id int(5) UNSIGNED NOT NULL PRIMARY KEY, study_plan varchar(20) NOT NULL,study_plan_no float NOT NULL,progress int(5) DEFAULT NULL,pid int(5) NOT NULL,weak_section varchar(50) NOT NULL)"
+    c.execute(table)
     q1 = "SELECT user_id FROM listening_user where user_id = %s"
     try:
         c.execute(q1, uid)
@@ -53,13 +113,14 @@ def listen():
             c.execute(q5, uid)
             pid = c.fetchone()[0]
             c.close()
+            
             data = {'study_plan':  study_plan, 'progress': progress,
-                    'weak_section': weak_section, 'study_plan_no': study_plan_no, 'pid': pid}
+                    'weak_section': weak_section, 'study_plan_no': study_plan_no, 'pid': pid , 'papers1': papers1 , 'papers2': papers2 , 'papers3': papers3 , 'papers4': papers4}
             return render_template('/listening/listening_home.html', data=data)
         # if current user not in database load test paper
         else:
             return render_template("/listening/test_papers/listening_test_paper1_section1.html")
-    except Exception as e:
+    except Exception:
         return render_template("/listening/test_papers/listening_test_paper1_section1.html")
 
 # teset paper section1 tempory answers save to database
@@ -410,11 +471,11 @@ def get_suggestions(sec1, sec2, sec3, sec4):
 
 @listening.route('/listening/summary')
 def summary():
-    stud = {1: "stage 1",
-            2: "stage 2",
-            3: "stage 3",
-            4: "stage 4",
-            5: "stage 5"
+    stud = {1: "Stage 1",
+            2: "Stage 2",
+            3: "Stage 3",
+            4: "Stage 4",
+            5: "Stage 5"
             }
     sec1 = section1ans()
     sec2 = section2ans()
@@ -464,12 +525,6 @@ def update_plans(pid):
     if progress == 100:
         flash('You were successfully completed this stage! please press  : evaluate study plan to check your skills')
         return listen()
-    elif pid == 11 and progress == 0:
-        progress4 = int(progress) + 0
-    elif pid == 12 and progress == 0:
-        progress4 = int(progress) + 0
-    elif pid == 13 and progress == 0:
-        progress4 = int(progress) + 0
     elif pid == 1 and progress == 0:
         progress4 = int(progress) + 20
     elif pid == 2 and progress == 20:
@@ -494,66 +549,23 @@ def update_plans(pid):
 def add_paper():
     if request.method == "POST":
         paper_name = request.form['paper_name']
-        media_file = request.form['media_file']
+        media_file = request.files['media_file']
         instruct = request.form['instruct']
+        level = request.form['l_val']
+
+        filename = secure_filename(media_file.filename)
+        media_file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
 
         #adding sample data to quiz database tables
         conn = mysql.connect()
         c = conn.cursor()
-        try:
-            q = "SELECT paper_id  FROM listening_add_paper WHERE paper_id = 1"
-            c.execute(q)
-            paper_id = c.fetchone()[0]
-            if paper_id:
-                query = "INSERT INTO listening_add_paper(paper_name,media_file,instruct) VALUES (%s,%s,%s)"
-                val = [paper_name , media_file , instruct]
-                c.execute(query, val)
-                conn.commit()
-                c.close()
-                return addpaper_2()
-        except Exception as e:
-            create_table1= "CREATE TABLE IF NOT EXISTS listening_add_paper (paper_id INT(2) UNSIGNED AUTO_INCREMENT PRIMARY KEY , paper_name VARCHAR(150) , media_file MEDIUMBLOB NOT NULL , instruct VARCHAR(150))"
-            c.execute(create_table1)
-            query = "INSERT INTO listening_add_paper(paper_name,media_file,instruct) VALUES (%s,%s,%s)"
-            val = ['sample paper' , media_file , 'instruct']
-            c.execute(query, val)
-            conn.commit()
+        query = "INSERT INTO listening_add_paper(paper_name,media_file,instruct,level) VALUES (%s,%s,%s,%s)"
+        val = [paper_name ,filename,instruct,level]
+        c.execute(query, val)
+        conn.commit()
+        c.close()
 
-            create_table2= "CREATE TABLE IF NOT EXISTS listening_add_paper_mcq(id INT(2) UNSIGNED AUTO_INCREMENT PRIMARY KEY, qid int(2), question VARCHAR(150) NOT NULL, a  VARCHAR(150), b  VARCHAR(150), c  VARCHAR(150),d  VARCHAR(150), corret_answer VARCHAR(150) , paper_id int)"
-            c.execute(create_table2)
-            query = "INSERT INTO listening_add_paper_mcq(qid,question,a,b,c,d, corret_answer , paper_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)"
-            val = [0, 'ques','ans1','ans2','ans3','ans4','a',0]
-            c.execute(query, val)
-            conn.commit()
-
-            create_table3 = "CREATE TABLE IF NOT EXISTS listening_add_paper_ttype(id INT(2) UNSIGNED AUTO_INCREMENT PRIMARY KEY , qid int(2) , question VARCHAR(150) NOT NULL , answer VARCHAR(150), paper_id int)"
-            c.execute(create_table3)
-            query = "INSERT INTO listening_add_paper_ttype(qid,question,answer, paper_id) VALUES (%s,%s,%s,%s)"
-            val = [0, 'ques','answer',0]
-            c.execute(query, val)
-            conn.commit()
-
-            create_table4 = "CREATE TABLE IF NOT EXISTS listening_add_paper_matching (id INT(2) UNSIGNED AUTO_INCREMENT PRIMARY KEY , qid int(2) , question VARCHAR(150) NOT NULL , answer VARCHAR(150), paper_id int)"
-            c.execute(create_table4)
-            query = "INSERT INTO listening_add_paper_matching(qid,question,answer,paper_id) VALUES (%s,%s,%s,%s)"
-            val = [0, 'ques','answer',0]
-            c.execute(query, val)
-            conn.commit()
-
-            create_table5= "CREATE TABLE IF NOT EXISTS listening_add_paper_multiple(id INT(2) UNSIGNED AUTO_INCREMENT PRIMARY KEY, qid int(2), question VARCHAR(150) NOT NULL, a  VARCHAR(150), b  VARCHAR(150), c  VARCHAR(150), d  VARCHAR(150), ans_a  int(2), ans_b int(2), ans_c  int(2),ans_d  int(2), paper_id int)"
-            c.execute(create_table5)
-            query = "INSERT INTO listening_add_paper_multiple(qid,question,a,b,c,d,ans_a,ans_b,ans_c,ans_d, paper_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
-            val = [0, 'ques','ans1','ans2','ans3','ans4',0,0,0,0,0]
-            c.execute(query, val)
-            conn.commit()
-
-            query = "INSERT INTO listening_add_paper(paper_name,media_file,instruct) VALUES (%s,%s,%s)"
-            val = [paper_name , media_file , instruct]
-            c.execute(query, val)
-            conn.commit()
-            c.close()
-
-            return addpaper_2()
+        return addpaper_2()
             
 @listening.route("/listening/add_paper_mcq", methods=['POST'])
 def add_paper_mcq():
@@ -822,10 +834,20 @@ def display_quiz(paper_id):
 def available_quiz():
     conn = mysql.connect()
     c = conn.cursor()
-    query3 = "SELECT * FROM listening_add_paper"
+    query1 = "SELECT * FROM listening_add_paper WHERE level = 1"
+    c.execute(query1)
+    papers1 =  c.fetchall()
+    query2 = "SELECT * FROM listening_add_paper WHERE level = 2"
+    c.execute(query2)
+    papers2 =  c.fetchall()
+    query3 = "SELECT * FROM listening_add_paper WHERE level = 3"
     c.execute(query3)
-    papers = c.fetchall()
-    return render_template('/listening/quiz/available_quiz.html', papers = papers)
+    papers3 =  c.fetchall()
+    query4 = "SELECT * FROM listening_add_paper WHERE level = 4"
+    c.execute(query4)
+    papers4 =  c.fetchall()
+    papers = [papers1,papers2,papers3,papers4]
+    return papers
 
 # home link
 @listening.route("/listening/save_paper")
@@ -1039,3 +1061,12 @@ def section4_2():
 @listening.route("/listening/section4_3")
 def section4_3():
     return render_template('/listening/improvment_plan_papers/section4.3.html')
+
+@listening.route("/listening/gg")
+def gg():
+    conn = mysql.connect()
+    c = conn.cursor()
+    query3 = "SELECT * FROM listening_add_paper"
+    c.execute(query3)
+    papers =  c.fetchall()
+    return str(papers)
